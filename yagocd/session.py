@@ -47,6 +47,7 @@ class Session(object):
         self._options = options
         self._session = requests.Session()
         self.__server_version = None
+        self.__use_cookie_auth = False
 
     @staticmethod
     def urljoin(*args):
@@ -97,9 +98,18 @@ class Session(object):
             data=data,
             headers=merged_headers,
             files=files,
-            auth=self._auth,
+            auth=self._auth if not self.__use_cookie_auth else None,
             verify=self._options['verify']
         )
+
+        # if we tried with cookie authentication and it failed, retry with basic auth
+        if self.__use_cookie_auth == True and response.status_code == 401:
+            self.__use_cookie_auth = False
+            self.request(method, path, params, data, headers, files)
+        # if we have a successfull authentication only use cookies
+        if self.__use_cookie_auth == False and response.status_code == 200:
+            self.__use_cookie_auth = True
+
         # raise exception if we got 4xx/5xx response
         self._raise_for_status(response)
 
